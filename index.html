@@ -1,0 +1,142 @@
+<!DOCTYPE html>
+<html lang="ja">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>数式グラフ描画ツール</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/mathjs/9.4.4/math.js"></script>
+    <script src="https://cdn.plot.ly/plotly-latest.min.js"></script>
+    <script src="https://polyfill.io/v3/polyfill.min.js?features=es6"></script>
+    <script
+      id="MathJax-script"
+      async
+      src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-chtml.js"
+    ></script>
+    <style>
+      .math-button {
+        margin: 5px;
+        padding: 5px 10px;
+        font-size: 16px;
+      }
+      #equation-preview {
+        margin-top: 10px;
+        font-size: 18px;
+      }
+      .math-input {
+        display: inline-block;
+        border: 1px dashed #ccc;
+        min-width: 20px;
+        min-height: 20px;
+      }
+    </style>
+  </head>
+  <body>
+    <div>
+      <input type="text" id="equation" placeholder="数式を入力" />
+      <button onclick="addToEquation('\\frac{}{}')" class="math-button">
+        分数
+      </button>
+      <button onclick="addToEquation('^')" class="math-button">累乗</button>
+      <button onclick="addToEquation('\\sqrt{}')" class="math-button">
+        ルート
+      </button>
+      <input type="text" id="x-range" placeholder="xの範囲 (例: -10,10)" />
+      <input type="text" id="y-range" placeholder="yの範囲 (例: -10,10)" />
+      <button onclick="drawGraph()">グラフ描画</button>
+    </div>
+    <div id="equation-preview"></div>
+    <div id="graph"></div>
+
+    <script>
+      function addToEquation(symbol) {
+        const equationInput = document.getElementById("equation");
+        const cursorPos = equationInput.selectionStart;
+        const currentValue = equationInput.value;
+        let newValue;
+
+        if (symbol === "\\frac{}{}") {
+          newValue =
+            currentValue.slice(0, cursorPos) +
+            "分子" +
+            " / " + // 横線の代わりにスラッシュを使用
+            "分母" +
+            currentValue.slice(cursorPos);
+        } else if (symbol === "\\sqrt{}") {
+          newValue =
+            currentValue.slice(0, cursorPos) +
+            "\\sqrt{\\placeholder{}}" +
+            currentValue.slice(cursorPos);
+        } else {
+          newValue =
+            currentValue.slice(0, cursorPos) +
+            symbol +
+            currentValue.slice(cursorPos);
+        }
+
+        equationInput.value = newValue; // valueを使用してテキストを挿入
+        equationInput.focus();
+        updatePreview();
+      }
+
+      function updatePreview() {
+        const equation = document.getElementById("equation").value; // valueを取得
+        const preview = document.getElementById("equation-preview");
+        preview.innerHTML = "\\(" + equation + "\\)";
+        MathJax.typeset([preview]);
+      }
+
+      function drawGraph() {
+        const equation = document.getElementById("equation").value;
+        const xRangeInput = document
+          .getElementById("x-range")
+          .value.split(",")
+          .map(Number);
+        const yRangeInput = document
+          .getElementById("y-range")
+          .value.split(",")
+          .map(Number);
+        const xValues = math
+          .range(xRangeInput[0], xRangeInput[1], 0.1)
+          .toArray();
+        const yValues = xValues
+          .map((x) => {
+            try {
+              if (equation.startsWith("y=")) {
+                return parseFloat(equation.split("=")[1]);
+              }
+              return math.evaluate(
+                equation
+                  .replace(/\\frac{(.+?)}{(.+?)}/g, "($1)/($2)")
+                  .replace(/\\sqrt{(.+?)}/g, "sqrt($1)"),
+                { x: x }
+              );
+            } catch (error) {
+              console.error("数式の評価エラー:", error);
+              return null;
+            }
+          })
+          .filter((y) => y >= yRangeInput[0] && y <= yRangeInput[1]);
+
+        const trace = {
+          x: xValues,
+          y: yValues,
+          type: "scatter",
+          mode: "lines",
+        };
+
+        const layout = {
+          title: "数式グラフ",
+          xaxis: { title: "x", range: [xRangeInput[0], xRangeInput[1]] },
+          yaxis: { title: "y", range: [yRangeInput[0], yRangeInput[1]] },
+        };
+
+        Plotly.newPlot("graph", [trace], layout);
+      }
+
+      document
+        .getElementById("equation")
+        .addEventListener("input", updatePreview);
+      updatePreview();
+    </script>
+  </body>
+</html>
